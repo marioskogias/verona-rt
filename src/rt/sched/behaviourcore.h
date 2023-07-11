@@ -12,6 +12,10 @@ namespace verona::rt
 {
   using namespace snmalloc;
 
+  constexpr uint32_t MEM_ARRAY_SIZE = 64*1024;
+  constexpr uint32_t MEM_ARRAY_ELEM_SIZE = 128;
+  constexpr uint32_t MEM_ARRAY_ELEM_COUNT = MEM_ARRAY_SIZE / MEM_ARRAY_ELEM_SIZE;
+
   class Request
   {
     Cown* _cown;
@@ -128,6 +132,10 @@ namespace verona::rt
     std::atomic<size_t> exec_count_down;
     size_t count;
 
+    static inline char mem_array[MEM_ARRAY_SIZE * MEM_ARRAY_ELEM_SIZE];
+    static inline uint32_t mem_array_idx = 0;
+
+
     /**
      * @brief Construct a new Behaviour object
      *
@@ -205,7 +213,10 @@ namespace verona::rt
       //   | Work | Behaviour | Slot ... Slot | Body |
       size_t size =
         sizeof(Work) + sizeof(BehaviourCore) + (sizeof(Slot) * count) + payload;
-      void* base = ThreadAlloc::get().alloc(size);
+      //void* base = ThreadAlloc::get().alloc(size);
+      void* base = &mem_array[mem_array_idx++ * MEM_ARRAY_ELEM_SIZE];
+      if (mem_array_idx>=MEM_ARRAY_ELEM_COUNT)
+        mem_array_idx=0;
 
       Work* work = new (base) Work(f);
       void* base_behaviour = from_work(work);
