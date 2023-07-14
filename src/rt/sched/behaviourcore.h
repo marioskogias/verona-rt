@@ -280,7 +280,10 @@ namespace verona::rt
       // Really want a dynamically sized stack allocation here.
       StackArray<size_t> indexes(count);
       for (size_t i = 0; i < count; i++)
+      {
         indexes[i] = i;
+        slots[i].set_ready();
+      }
 
       auto compare = [slots](const size_t i, const size_t j) {
 #ifdef USE_SYSTEMATIC_TESTING
@@ -325,12 +328,14 @@ namespace verona::rt
                         << " for behaviour " << body << Logging::endl;
 
         yield();
+#if 0
         while (prev->is_wait())
         {
           // Wait for the previous behaviour to finish adding to first phase.
           Aal::pause();
           Systematic::yield_until([prev]() { return !prev->is_wait(); });
         }
+#endif
 
         if (transfer == YesTransfer)
         {
@@ -342,6 +347,7 @@ namespace verona::rt
         yield();
       }
 
+#if 0
       // Second phase - Release phase.
       Logging::cout() << "Release phase for behaviour " << body
                       << Logging::endl;
@@ -352,6 +358,7 @@ namespace verona::rt
                         << Logging::endl;
         slots[i].set_ready();
       }
+#endif
 
       yield();
       body->resolve(ec);
