@@ -838,7 +838,11 @@ namespace verona::rt
 
     inline void dealloc(Alloc& alloc)
     {
+      // Make sure this is never called if all cowns are custom allocated
+      assert(0);
+#if 0
       alloc.dealloc(&this->get_header(), size());
+#endif
     }
 
   protected:

@@ -189,5 +189,10 @@ namespace verona::rt
       return Object::register_object(
         alloc.alloc<vsizeof<T>>(), VBase<T, Cown>::desc());
     }
+
+    void* operator new(size_t, void *addr)
+    {
+      return Object::register_object(addr, VBase<T, Cown>::desc());
+    }
   };
 } // namespace verona::rt

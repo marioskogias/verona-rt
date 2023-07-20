@@ -58,6 +58,9 @@ namespace verona::cpp
 
     template<typename TT, typename... Args>
     friend cown_ptr<TT> make_cown(Args&&... ts);
+
+    template<typename TT, typename... Args>
+    friend cown_ptr<TT> make_cown_custom(void *addr, Args&&... ts);
   };
 
   /**
@@ -330,6 +333,9 @@ namespace verona::cpp
     template<typename TT, typename... Args>
     friend cown_ptr<TT> make_cown(Args&&...);
 
+    template<typename TT, typename... Args>
+    friend cown_ptr<TT> make_cown_custom(void *addr, Args&&...);
+
     template<typename...>
     friend class When;
   };
@@ -369,6 +375,19 @@ namespace verona::cpp
       "use case.");
     Scheduler::stats().cown();
     return cown_ptr<T>(new ActualCown<T>(std::forward<Args>(ts)...));
+  }
+
+  template<typename T, typename... Args>
+  cown_ptr<T> make_cown_custom(void *addr, Args&&... ts)
+  {
+    std::cout << "Will make custom allocated cown\n";
+    static_assert(
+      !std::is_const_v<T>,
+      "Cannot make a cown of const type as this conflicts with read acquire "
+      "encoding trick. If we hit this assertion, raise an issue explaining the "
+      "use case.");
+    Scheduler::stats().cown();
+    return cown_ptr<T>(new (addr) ActualCown<T>(std::forward<Args>(ts)...));
   }
 
   template<typename T>
