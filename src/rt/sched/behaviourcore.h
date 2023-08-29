@@ -154,6 +154,18 @@ namespace verona::rt
     std::atomic<size_t> exec_count_down;
     size_t count;
 
+    static uint64_t& upper_bound()
+    {
+      static thread_local uint64_t upper_bound;
+      return upper_bound;
+    }
+
+    static uint64_t& lower_bound()
+    {
+      static thread_local uint64_t lower_bound;
+      return lower_bound;
+    }
+
     /**
      * @brief Construct a new Behaviour object
      *
@@ -165,7 +177,10 @@ namespace verona::rt
      * slots. Two phase locking needs to complete before we can execute the
      * behaviour.
      */
-    BehaviourCore(size_t count) : exec_count_down(count + 1), count(count) {}
+#define THREAD_COUNT 2
+    BehaviourCore(size_t count)
+    : exec_count_down(count + THREAD_COUNT), count(count)
+    {}
 
     Work* as_work()
     {
@@ -253,6 +268,24 @@ namespace verona::rt
       return behaviour;
     }
 
+    static bool should_schedule_locally(Cown* c)
+    {
+      // This is super naive for the moment
+      // Fix me for better split
+      uint64_t cid = ((uint64_t)c & 0xff);
+      bool ret = (cid >= lower_bound()) && (cid < upper_bound());
+
+      std::cout << "low: " << lower_bound() << " up: " << upper_bound()
+                << " cown: " << cid << " verdict: " << ret << std::endl;
+      return ret;
+    }
+
+    static void configure_cown_filtering(uint64_t low, uint64_t up)
+    {
+      lower_bound() = low;
+      upper_bound() = up;
+    }
+
     /**
      * @brief Schedule a behaviour for execution.
      *
@@ -313,6 +346,7 @@ namespace verona::rt
       for (size_t i = 0; i < body_count; i++)
         ec[i] = 1;
 
+      size_t local_count = 0;
       // Really want a dynamically sized stack allocation here.
       StackArray<std::tuple<size_t, Slot*>> indexes(count);
       size_t idx = 0;
@@ -321,9 +355,13 @@ namespace verona::rt
         auto slots = bodies[i]->get_slots();
         for (size_t j = 0; j < bodies[i]->count; j++)
         {
+          if (!should_schedule_locally(slots[j].cown))
+            continue;
+
           std::get<0>(indexes[idx]) = i;
           std::get<1>(indexes[idx]) = &slots[j];
           idx++;
+          local_count++;
         }
       }
       auto compare = [](
@@ -339,6 +377,8 @@ namespace verona::rt
           std::get<1>(i)->cown < std::get<1>(j)->cown;
 #endif
       };
+
+      count = local_count;
 
       if (count > 1)
         std::sort(indexes.get(), indexes.get() + count, compare);

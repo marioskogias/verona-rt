@@ -209,7 +209,6 @@ namespace verona::cpp
 
     size_t get_behaviours(Behaviour** array)
     {
-      // BehaviourCore::schedule_many(barray, sizeof...(Args));
       memcpy(array, barray, sizeof...(Args) * sizeof(Behaviour*));
 
       return sizeof...(Args);
