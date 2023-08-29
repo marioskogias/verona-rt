@@ -164,6 +164,8 @@ namespace verona::cpp
     /// the uncombined batches should not run.
     bool part_of_larger_batch = false;
 
+    BehaviourCore* barray[sizeof...(Args)];
+
     template<typename... Args2>
     friend class Batch;
 
@@ -189,23 +191,12 @@ namespace verona::cpp
     }
 
   public:
-    Batch(std::tuple<Args...> args) : when_batch(std::move(args)) {}
+    Batch(std::tuple<Args...> args) : when_batch(std::move(args))
+    {
+      create_behaviour(barray);
+    }
 
     Batch(const Batch&) = delete;
-
-    ~Batch()
-    {
-      if constexpr (sizeof...(Args) > 0)
-      {
-        if (part_of_larger_batch)
-          return;
-
-        BehaviourCore* barray[sizeof...(Args)];
-        create_behaviour(barray);
-
-        BehaviourCore::schedule_many(barray, sizeof...(Args));
-      }
-    }
 
     template<typename... Args2>
     auto operator+(Batch<Args2...>&& wb)
@@ -214,6 +205,14 @@ namespace verona::cpp
       this->part_of_larger_batch = true;
       return Batch<Args..., Args2...>(
         std::tuple_cat(std::move(this->when_batch), std::move(wb.when_batch)));
+    }
+
+    size_t get_behaviours(Behaviour** array)
+    {
+      // BehaviourCore::schedule_many(barray, sizeof...(Args));
+      memcpy(array, barray, sizeof...(Args) * sizeof(Behaviour*));
+
+      return sizeof...(Args);
     }
   };
 
