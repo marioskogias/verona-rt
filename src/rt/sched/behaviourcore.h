@@ -378,8 +378,17 @@ namespace verona::rt
         yes_count += last_slot->status;
         last_slot->reset_status();
 
-        auto prev =
-          cown->last_slot.exchange(last_slot, std::memory_order_acq_rel);
+        auto prev = cown->last_slot.load(std::memory_order_acquire);
+
+        if (prev == nullptr)
+        {
+          cown->last_slot.store(last_slot, std::memory_order_release);
+        }
+        else
+        {
+          prev =
+            cown->last_slot.exchange(last_slot, std::memory_order_acq_rel);
+        }
 
         // set_behaviour to the first_slot
         yield();
