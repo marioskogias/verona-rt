@@ -115,7 +115,7 @@ namespace verona::cpp
     std::tuple<Access<Args>...> cown_tuple;
 
     /// The closure to be executed.
-    F f;
+    F&& f;
 
     /// Used as a temporary to build the behaviour.
     /// The stack lifetime is tricky, and this avoids
@@ -188,7 +188,7 @@ namespace verona::cpp
     auto to_behaviour_help(F2&& f_help)
     {
       return Behaviour::prepare_to_schedule<F2>(
-        sizeof...(Args), requests, std::move(f_help));
+        sizeof...(Args), requests, std::forward<F2>(f_help));
     }
 
     auto to_behaviour()
@@ -202,14 +202,14 @@ namespace verona::cpp
       {
         array_assign(requests);
         return to_behaviour_help(
-          [f = std::move(f), cown_tuple = cown_tuple]() mutable {
+          [f = std::forward<F>(f), cown_tuple = cown_tuple]() mutable {
             /// Effectively converts ActualCown<T>... to
             /// acquired_cown... .
-            auto lift_f = [f = std::move(f)](Access<Args>... args) mutable {
-              std::move(f)(access_to_acquired<Args>(args)...);
+            auto lift_f = [f = std::forward<F>(f)](Access<Args>... args) mutable {
+              f(access_to_acquired<Args>(args)...);
             };
 
-            std::apply(std::move(lift_f), cown_tuple);
+            std::apply(lift_f, cown_tuple);
           });
       }
     }
