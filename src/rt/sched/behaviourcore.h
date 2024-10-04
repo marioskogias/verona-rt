@@ -759,6 +759,7 @@ namespace verona::rt
         Slot* last_slot;
         size_t transfer_count;
         bool had_no_predecessor;
+        bool all_reads;
       };
       size_t i = 0;
       size_t chain_count = 0;
@@ -777,6 +778,8 @@ namespace verona::rt
 
         Logging::cout() << "Processing " << cown << " " << body << " "
                         << last_slot << " Index " << i << Logging::endl;
+
+        auto all_reads = last_slot->is_read_only();
 
         // Detect duplicates for this cown.
         // This is required in two cases:
@@ -804,27 +807,31 @@ namespace verona::rt
             continue;
           }
 
-          // For writers, create a chain of behaviours
-          if (!std::get<1>(cown_to_behaviour_slot_map[i])->is_read_only())
+          if (std::get<1>(cown_to_behaviour_slot_map[i])->is_read_only())
           {
-            body = body_next;
+            // Extend the chain of behaviours linking on this behaviour
+            last_slot->set_next_slot_reader(last_slot);
 
+            // FIXME: Do I need to do everything else here?
+          }
+          else
+          {
+            all_reads = false;
             // Extend the chain of behaviours linking on this behaviour
             last_slot->set_next_slot_writer(body);
-            last_slot->set_ready();
-
-            last_slot = std::get<1>(cown_to_behaviour_slot_map[i]);
-            continue;
           }
+          last_slot->set_ready();
 
-          // TODO: Chain with reads and writes is not implemented.
-          abort();
+          body = body_next;
+          last_slot = std::get<1>(cown_to_behaviour_slot_map[i]);
         }
+
+        std::cout << "Got chain all reads: " << all_reads << std::endl;
 
         // For each chain you need the cown, the first and the last body of the
         // chain
         chain_info[chain_count++] = {
-          cown, first_body_index, last_slot, transfer_count, false};
+          cown, first_body_index, last_slot, transfer_count, false, all_reads};
 
         // Mark the slot as ready for scheduling
         last_slot->reset_status();
