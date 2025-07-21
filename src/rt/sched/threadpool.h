@@ -228,6 +228,8 @@ namespace verona::rt
       }
       Logging::cout() << "Runtime initialised" << Logging::endl;
       init_barrier();
+
+      get().core_pool = core_pool;
     }
 
     void run()

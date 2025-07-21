@@ -62,6 +62,11 @@ namespace verona::rt
       BehaviourCore* b = BehaviourCore::from_work(work);
       Be* body = b->get_body<Be>();
 
+      behaviour_get_id() = reinterpret_cast<uint64_t>(work);
+
+      std::cout << "Before running the function the work id is "
+                << behaviour_get_id() << std::endl;
+
       (*body)();
       if (behaviour_rerun())
       {
@@ -69,6 +74,14 @@ namespace verona::rt
         Scheduler::schedule(work);
         return;
       }
+
+      if (behaviour_yield_waiting_external())
+      {
+        behaviour_yield_waiting_external() = false;
+        // FIXME: How do i wake-up the behaviour again?
+        return;
+      }
+
       // Dealloc behaviour
       body->~Be();
 
@@ -80,6 +93,27 @@ namespace verona::rt
     {
       static thread_local bool rerun = false;
       return rerun;
+    }
+
+    static bool& behaviour_yield_waiting_external()
+    {
+      static thread_local bool waiting_external = false;
+      return waiting_external;
+    }
+
+    static uint64_t& behaviour_get_id()
+    {
+      static thread_local uint64_t bid = 0;
+      return bid;
+    }
+
+    static void behaviour_reschedule(uint64_t bid)
+    {
+      Work* work = reinterpret_cast<Work*>(bid);
+      std::cout << "rescheduling work with work id " << bid << std::endl;
+      // auto* core = round_robin();
+      // T::schedule_lifo(core, w);
+      Scheduler::schedule(work);
     }
 
     template<typename Be>
