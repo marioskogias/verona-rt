@@ -26,11 +26,9 @@ public:
 
 using namespace verona::cpp;
 
-void external_thread_main(ObjectWithState::State *s, uint64_t work_id)
+void external_thread_main(ObjectWithState::State *s, Behaviour::Waker w)
 {
-  std::cout << "I'm the external thread\n";
-  std::cout << "From the external thread the work id is " << work_id
-            << std::endl;
+  std::cout << "I'm the external thread. State is " << *s << std::endl;
   assert(*s == ObjectWithState::StateB);
 
   auto pause_time = std::chrono::milliseconds(1000);
@@ -39,30 +37,30 @@ void external_thread_main(ObjectWithState::State *s, uint64_t work_id)
 
   *s = ObjectWithState::StateC;
 
-  // This needs to run on a scheduler thread
-  //when() << [=]() { Behaviour::behaviour_reschedule(work_id); };
-  Behaviour::behaviour_reschedule(work_id);
+  w.wake();
 }
 
 void test_counter(SystematicTestHarness* harness)
 {
   Logging::cout() << "Yield external input test" << Logging::endl;
 
+
   auto obj_cown = make_cown<ObjectWithState>();
 
   when(obj_cown) << [=](auto obj) {
     uint64_t work_id;
     ObjectWithState::State *s;
+    auto w = Behaviour::Waker::get_waker();
+
     switch (obj->s)
     {
       case ObjectWithState::StateA:
-        std::cout << "In state A" << Logging::endl;
+        std::cout << "In state A\n" << Logging::endl;
         obj->s = ObjectWithState::StateB;
 
-        work_id = Behaviour::behaviour_get_id();
-        Scheduler::add_external_event_source();
         s = &(obj->s);
-        harness->external_thread([=]() mutable { external_thread_main(s, work_id); });
+        Scheduler::add_external_event_source();
+        harness->external_thread([=]() mutable { external_thread_main(s, w); });
 
         BEHAVIOUR_YIELD_WAITING_EXTERNAL();
         break;

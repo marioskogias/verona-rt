@@ -62,10 +62,7 @@ namespace verona::rt
       BehaviourCore* b = BehaviourCore::from_work(work);
       Be* body = b->get_body<Be>();
 
-      behaviour_get_id() = reinterpret_cast<uint64_t>(work);
-
-      std::cout << "Before running the function the work id is "
-                << behaviour_get_id() << std::endl;
+      current_behaviour_work() = work;
 
       (*body)();
       if (behaviour_rerun())
@@ -88,6 +85,12 @@ namespace verona::rt
       BehaviourCore::finished(work);
     }
 
+    static Work*& current_behaviour_work()
+    {
+      static thread_local Work* work = nullptr;
+      return work;
+    }
+
   public:
     static bool& behaviour_rerun()
     {
@@ -101,20 +104,23 @@ namespace verona::rt
       return waiting_external;
     }
 
-    static uint64_t& behaviour_get_id()
-    {
-      static thread_local uint64_t bid = 0;
-      return bid;
-    }
+    class Waker {
+      Work *w;
 
-    static void behaviour_reschedule(uint64_t bid)
-    {
-      Work* work = reinterpret_cast<Work*>(bid);
-      std::cout << "rescheduling work with work id " << bid << std::endl;
-      // auto* core = round_robin();
-      // T::schedule_lifo(core, w);
-      Scheduler::schedule(work);
-    }
+      Waker(Work *w_) : w(w_) {}
+
+      public:
+
+      static Waker get_waker()
+      {
+        return Waker(current_behaviour_work());
+      }
+
+      void wake()
+      {
+        Scheduler::schedule(w);
+      }
+    };
 
     template<typename Be>
     static Behaviour* make(size_t count, Be&& f)
