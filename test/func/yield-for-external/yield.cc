@@ -24,26 +24,27 @@ public:
   ObjectWithState() : s(StateA) {}
 };
 
-
 using namespace verona::cpp;
 
-void external_thread_main(uint64_t work_id)
+void external_thread_main(ObjectWithState::State *s, uint64_t work_id)
 {
-    std::cout << "I'm the external thread\n";
-    std::cout << "From the external thread the work id is " << work_id << std::endl;
-    //assert(obj.s == ObjectWithState::StateB)
+  std::cout << "I'm the external thread\n";
+  std::cout << "From the external thread the work id is " << work_id
+            << std::endl;
+  assert(*s == ObjectWithState::StateB);
 
-    auto pause_time = std::chrono::milliseconds(1000);
-    std::this_thread::sleep_for(pause_time);
-    std::cout << "I'm the external thread after sleeping\n";
+  auto pause_time = std::chrono::milliseconds(1000);
+  std::this_thread::sleep_for(pause_time);
+  std::cout << "I'm the external thread after sleeping\n";
 
-    // This needs to run on a scheduler thread
-    when() << [=]() {
-        Behaviour::behaviour_reschedule(work_id);
-    };
+  *s = ObjectWithState::StateC;
+
+  // This needs to run on a scheduler thread
+  //when() << [=]() { Behaviour::behaviour_reschedule(work_id); };
+  Behaviour::behaviour_reschedule(work_id);
 }
 
-void test_counter(SystematicTestHarness *harness)
+void test_counter(SystematicTestHarness* harness)
 {
   Logging::cout() << "Yield external input test" << Logging::endl;
 
@@ -51,6 +52,7 @@ void test_counter(SystematicTestHarness *harness)
 
   when(obj_cown) << [=](auto obj) {
     uint64_t work_id;
+    ObjectWithState::State *s;
     switch (obj->s)
     {
       case ObjectWithState::StateA:
@@ -59,7 +61,8 @@ void test_counter(SystematicTestHarness *harness)
 
         work_id = Behaviour::behaviour_get_id();
         Scheduler::add_external_event_source();
-        harness->external_thread([=]() { external_thread_main(work_id); });
+        s = &(obj->s);
+        harness->external_thread([=]() mutable { external_thread_main(s, work_id); });
 
         BEHAVIOUR_YIELD_WAITING_EXTERNAL();
         break;
@@ -67,7 +70,8 @@ void test_counter(SystematicTestHarness *harness)
         assert(0);
         break;
       case ObjectWithState::StateC:
-        Logging::cout() << "In state C" << Logging::endl;
+        std::cout << "In state C" << std::endl;
+        Scheduler::remove_external_event_source();
         break;
     }
   };
