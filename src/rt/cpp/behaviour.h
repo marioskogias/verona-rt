@@ -49,26 +49,60 @@ namespace verona::rt
     }
   };
 
+  class Waker
+  {
+    Work* _work;
+
+  public:
+    Waker(Work* work) : _work(work) {}
+
+    void wake()
+    {
+      if (_work)
+      {
+        Scheduler::schedule(_work);
+        _work = nullptr;
+      }
+    }
+  };
+
   /**
    * This class provides the full `when` functionality.  It
    * provides the closure and lifetime management for the class.
    */
   class Behaviour : public BehaviourCore
   {
+    static Work*& current_work()
+    {
+      static thread_local Work* work = nullptr;
+      return work;
+    }
+
     template<typename Be>
     static void invoke(Work* work)
     {
+      current_work() = work;
       // Dispatch to the body of the behaviour.
       BehaviourCore* b = BehaviourCore::from_work(work);
       Be* body = b->get_body<Be>();
 
       (*body)();
+
+      current_work() = nullptr;
+
       if (behaviour_rerun())
       {
         behaviour_rerun() = false;
         Scheduler::schedule(work);
         return;
       }
+
+      if (behaviour_suspended())
+      {
+        behaviour_suspended() = false;
+        return;
+      }
+
       // Dealloc behaviour
       body->~Be();
 
@@ -80,6 +114,18 @@ namespace verona::rt
     {
       static thread_local bool rerun = false;
       return rerun;
+    }
+
+    static bool& behaviour_suspended()
+    {
+      static thread_local bool suspended = false;
+      return suspended;
+    }
+
+    static Waker suspend_with_waker()
+    {
+      behaviour_suspended() = true;
+      return Waker(current_work());
     }
 
     template<typename Be>
